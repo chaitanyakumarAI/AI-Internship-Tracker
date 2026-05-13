@@ -147,6 +147,13 @@ def run_once() -> dict:
             stats["skipped"] += 1
             newly_processed_ids.append(gmail_id)
             continue
+
+        # AI Company Research & Scam Check
+        from company_researcher import analyze_company
+        analysis = analyze_company(company, role, status)
+        classification["scam_risk"] = analysis["scam_risk"]
+        classification["risk_notes"] = analysis["risk_notes"]
+        classification["prep_sheet"] = analysis["prep_sheet"]
             
         # c) Notion upsert
         if notion_available:

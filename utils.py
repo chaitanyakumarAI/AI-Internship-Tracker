@@ -130,12 +130,13 @@ def is_job_related(subject: str, body: str, sender: str) -> bool:
         "promotional", "unsubscribe", "marketing", "advertisement",
         "internships you might like", "jobs you might like",
         "new jobs matching your profile", "weekly updates",
-        "courses", "masterclass", "webinar", "buy now"
+        "courses", "masterclass", "webinar", "buy now",
+        "internships posted", "hackathons", "@unstop.news"
     ]
     
-    # Check subject first for strong rejection signals
-    subj_lower = subject.lower()
-    if any(rej in subj_lower for rej in ["digest", "newsletter", "recommended", "matching your", "jobs for you", "weekly"]):
+    # Check subject and sender first for strong rejection signals
+    subj_sender = f"{subject} {sender}".lower()
+    if any(rej in subj_sender for rej in ["digest", "newsletter", "recommended", "matching your", "jobs for you", "weekly", "hackathons", "@unstop.news", "internships posted"]):
         return False
         
     # 2. Must contain job keywords

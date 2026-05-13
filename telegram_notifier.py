@@ -76,8 +76,10 @@ def notify_status_change(
     company = classification.get("company", "Unknown")
     role    = classification.get("role", "Unknown")
     subject = truncate(email.get("subject", ""), 80)
-    date    = email.get("date_iso", "")[:10]
-
+    # Parse date to show time too (e.g. 2026-05-13 14:30 UTC)
+    date_raw = email.get("date_raw", "")
+    date_iso = email.get("date_iso", "")[:16].replace("T", " ") + " UTC"
+    
     if action == "created":
         action_line = "🆕 <b>New application tracked</b>"
     else:
@@ -90,15 +92,29 @@ def notify_status_change(
     notes = classification.get("notes", "")
     notes_line = f"\n📌 <i>{notes}</i>" if notes and notes != "(classified by keyword fallback)" else ""
 
+    scam_risk = classification.get("scam_risk", "Unknown")
+    scam_emoji = "⚠️" if scam_risk in ("High", "Medium") else "✅"
+    risk_notes = classification.get("risk_notes", "")
+    scam_line = ""
+    if scam_risk != "Unknown":
+        scam_line = f"\n\n{scam_emoji} <b>Risk Assessment:</b> {scam_risk}\n<i>{risk_notes}</i>"
+
+    prep_sheet = classification.get("prep_sheet", "")
+    prep_line = ""
+    if prep_sheet:
+        prep_line = f"\n\n🧠 <b>Interview Prep Sheet:</b>\n{prep_sheet}"
+
     message = (
         f"{action_line}\n"
         f"\n{emoji} <b>Status:</b> {status}"
         f"\n🏢 <b>Company:</b> {company}"
         f"\n💼 <b>Role:</b> {role}"
         f"\n📧 <b>Subject:</b> {subject}"
-        f"\n📅 <b>Date:</b> {date}"
+        f"\n📅 <b>Time:</b> {date_iso}"
         f"{oa_line}"
         f"{notes_line}"
+        f"{scam_line}"
+        f"{prep_line}"
     )
 
     return send_message(message)

@@ -12,3 +12,4 @@ beautifulsoup4>=4.14.3
 lxml>=5.3.0
 colorama>=0.4.6
 tqdm>=4.67.3
+duckduckgo-search>=7.0.0
