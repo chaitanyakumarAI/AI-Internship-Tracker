@@ -1,6 +1,6 @@
 services:
   # 1. Python Background Worker (Email processing)
-  - type: worker
+  - type: web
     name: ai-job-tracker-worker
     env: python
     plan: free

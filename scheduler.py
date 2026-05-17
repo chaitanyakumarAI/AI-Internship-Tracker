@@ -10,11 +10,28 @@ import time
 import logging
 import schedule
 import argparse
+import threading
+import os
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
 import config
 from config import setup_logging
 
 logger = setup_logging("scheduler")
+
+
+class DummyHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/plain")
+        self.end_headers()
+        self.wfile.write(b"OK")
+        
+def start_dummy_server():
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(("0.0.0.0", port), DummyHandler)
+    logger.info(f"Started dummy HTTP server on port {port} to satisfy Render health checks")
+    server.serve_forever()
 
 
 def run_pipeline() -> None:
@@ -38,6 +55,9 @@ def main() -> None:
         run_pipeline()
         logger.info("Done.")
         return
+
+    # Start dummy web server in a background thread
+    threading.Thread(target=start_dummy_server, daemon=True).start()
 
     hours = config.POLL_INTERVAL_HOURS
     logger.info("Scheduler started — will run every %.1f hour(s).", hours)
