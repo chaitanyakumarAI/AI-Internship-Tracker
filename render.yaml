@@ -26,20 +26,3 @@ services:
       - key: GMAIL_TOKEN_JSON
         sync: false
 
-  # 2. Next.js Frontend & Webhook API
-  - type: web
-    name: ai-job-tracker-web
-    env: node
-    plan: free
-    rootDir: web
-    buildCommand: npm install && npm run build
-    startCommand: npm run start
-    envVars:
-      - key: NODE_VERSION
-        value: 20
-      - key: NOTION_API_KEY
-        sync: false
-      - key: NOTION_DATABASE_ID
-        sync: false
-      - key: TELEGRAM_BOT_TOKEN
-        sync: false
