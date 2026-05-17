@@ -41,6 +41,19 @@ def scrape_workday(company_name: str, portal_url: str, email: str, password: str
             
             # 2. Login
             logger.info("Entering credentials...")
+            
+            # Check if there is a "Sign in with email" button and click it (some portals hide the input fields initially)
+            for selector in ['button:has-text("Sign in with email")', 'button:has-text("Sign in with Email")', '[data-automation-id="signInWithEmailButton"]', 'text=Sign in with email']:
+                try:
+                    btn = page.locator(selector)
+                    if btn.count() > 0 and btn.is_visible():
+                        logger.info(f"Clicking 'Sign in with email' button using selector: {selector}")
+                        btn.click()
+                        time.sleep(1.5)
+                        break
+                except Exception as btn_err:
+                    logger.debug(f"Error checking selector {selector}: {btn_err}")
+
             # Workday uses data-automation-id for testing
             page.fill('input[data-automation-id="email"]', email)
             page.fill('input[data-automation-id="password"]', password)
