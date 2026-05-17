@@ -396,15 +396,22 @@ def _extract_company(sender: str, subject: str = "") -> str:
     name_match = re.match(r'^"?([^"<]+)"?\s*<', sender)
     if name_match:
         name = name_match.group(1).strip()
-        if name.lower() not in ("noreply", "no-reply", "donotreply", "team", "support", "careers", "recruitment", "talent acquisition"):
+        
+        # Blacklist common platform sender names
+        is_blacklisted = any(bad in name.lower() for bad in (
+            "noreply", "no-reply", "donotreply", "team", "support", "careers", 
+            "recruitment", "talent acquisition", "internshala", "linkedin", "unstop", "jia", "update"
+        ))
+        
+        if not is_blacklisted:
             name = re.sub(r"\s+(?:Team|Recruiting|Talent|Careers|HR)$", "", name, flags=re.IGNORECASE).strip()
-            if len(name) >= 2 and "internshala" not in name.lower() and "linkedin" not in name.lower():
+            if len(name) >= 2:
                 return name[:80]
                 
     m = re.search(r"at\s+([A-Z][a-zA-Z0-9\s]+?)(?:\s+for\s+|\s*$|\s+[-|@])", subject)
     if m:
         comp = m.group(1).strip()
-        if len(comp) > 2 and comp.lower() not in ("internshala", "linkedin"):
+        if len(comp) > 2 and comp.lower() not in ("internshala", "linkedin", "unstop"):
             return comp[:80]
 
     match = re.search(r"@([\w.-]+)\.", sender)

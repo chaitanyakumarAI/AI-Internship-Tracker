@@ -1,6 +1,7 @@
 services:
+  # 1. Python Background Worker (Email processing)
   - type: worker
-    name: ai-job-tracker
+    name: ai-job-tracker-worker
     env: python
     buildCommand: pip install -r requirements.txt
     startCommand: python scheduler.py
@@ -22,4 +23,21 @@ services:
       - key: GMAIL_CREDENTIALS_JSON
         sync: false
       - key: GMAIL_TOKEN_JSON
+        sync: false
+
+  # 2. Next.js Frontend & Webhook API
+  - type: web
+    name: ai-job-tracker-web
+    env: node
+    rootDir: web
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: NOTION_API_KEY
+        sync: false
+      - key: NOTION_DATABASE_ID
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
         sync: false

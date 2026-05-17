@@ -93,7 +93,7 @@ def notify_status_change(
         oa_line = f"\n🔗 <b>OA Link:</b> {classification['oa_link']}"
 
     notes = classification.get("notes", "")
-    notes_line = f"\n📌 <i>{notes}</i>" if notes and notes != "(classified by keyword fallback)" else ""
+    notes_line = f"\n📌 <i>{notes}</i>" if notes and notes != "(keyword fallback)" else ""
 
     scam_risk = classification.get("scam_risk", "Unknown")
     scam_emoji = "⚠️" if scam_risk in ("High", "Medium") else "✅"
