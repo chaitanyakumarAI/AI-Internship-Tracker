@@ -127,7 +127,7 @@ def print_startup_diagnostics() -> None:
 
     logger = logging.getLogger("config")
     logger.info("=" * 60)
-    logger.info("AI INTERNSHIP TRACKER — STARTUP DIAGNOSTICS")
+    logger.info("INTERN PULSE — STARTUP DIAGNOSTICS")
     logger.info("=" * 60)
     logger.info("  Notion     : %s", notion_status)
     logger.info("  Gemini     : %s", gemini_status)
