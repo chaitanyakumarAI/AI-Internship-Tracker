@@ -57,17 +57,48 @@ def _log_debug(email: dict, raw_response: str, parsed: dict, method: str):
     except Exception as e:
         logger.warning(f"Failed to write debug log: {e}")
 
+# ── Gemini Client Manager & Rotation ──────────────────────────────────────────
+_gemini_clients = []
+_current_client_idx = 0
+
+def _init_gemini_clients():
+    global _gemini_clients
+    if not _gemini_clients:
+        # Support comma-separated list of keys
+        raw_keys = config.GEMINI_API_KEY.split(",")
+        keys = [k.strip() for k in raw_keys if k.strip() and not k.strip().startswith("your_")]
+        
+        if not keys:
+            logger.warning("No valid Gemini API keys configured.")
+            return
+            
+        from google import genai
+        for idx, key in enumerate(keys):
+            try:
+                client = genai.Client(api_key=key)
+                _gemini_clients.append(client)
+            except Exception as exc:
+                logger.warning("Failed to initialize Gemini client for key #%d: %s", idx + 1, exc)
+                
+        if _gemini_clients:
+            logger.info("Initialized %d Gemini API client(s) for rotation.", len(_gemini_clients))
+
+def rotate_gemini_client() -> bool:
+    global _current_client_idx, _gemini_clients
+    _init_gemini_clients()
+    if len(_gemini_clients) <= 1:
+        return False
+    _current_client_idx = (_current_client_idx + 1) % len(_gemini_clients)
+    logger.info("Rotated to Gemini API key #%d.", _current_client_idx + 1)
+    return True
+
 def _get_gemini_client():
-    global _gemini_model
-    if _gemini_model is None:
-        try:
-            from google import genai
-            _gemini_model = genai.Client(api_key=config.GEMINI_API_KEY)
-            logger.info("Gemini client initialised.")
-        except Exception as exc:
-            logger.warning("Gemini client init failed: %s", exc)
-            _gemini_model = None
-    return _gemini_model
+    global _gemini_clients, _current_client_idx
+    _init_gemini_clients()
+    if not _gemini_clients:
+        return None
+    return _gemini_clients[_current_client_idx % len(_gemini_clients)]
+
 
 
 # ── Shared prompt ────────────────────────────────────────────────────────────
@@ -171,6 +202,12 @@ def classify_email_ai(email: dict) -> dict:
                     except Exception as exc:
                         exc_str = str(exc)
                         if "quota" in exc_str.lower() or "429" in exc_str or "rate" in exc_str.lower():
+                            # Attempt to rotate client immediately if multiple keys are configured
+                            if rotate_gemini_client():
+                                logger.info("Retrying classification immediately with the newly rotated API key...")
+                                client = _get_gemini_client()
+                                continue
+                                
                             if attempt < max_retries - 1:
                                 wait_time = 15 * (attempt + 1)
                                 logger.warning(f"Gemini rate limit hit. Waiting {wait_time} seconds before retry {attempt + 1}/{max_retries - 1}...")

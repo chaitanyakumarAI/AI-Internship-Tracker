@@ -114,32 +114,42 @@ Return ONLY valid JSON with this schema:
   "prep_sheet": "If Interview Scheduled, provide a short bulleted list of 1. Likely Tech Stack, 2. Recent News, 3. Likely Interview Questions based on the role. Use formatting. If not an interview, leave empty string."
 }}
 """
-    client = _get_gemini_client()
-    if client:
-        # Define retrying call helper
-        @retry(max_attempts=3, delay=5.0, backoff=2.0, exceptions=(Exception,))
-        def _call_gemini():
-            response = client.models.generate_content(
+    # Fetch the rotating client manager
+    from status_classifier import rotate_gemini_client, _get_gemini_client
+    
+    # Define retrying call helper
+    @retry(max_attempts=3, delay=5.0, backoff=2.0, exceptions=(Exception,))
+    def _call_gemini():
+        active_client = _get_gemini_client()
+        if not active_client:
+            raise Exception("No active Gemini clients available.")
+        try:
+            response = active_client.models.generate_content(
                 model='gemini-2.5-flash',
                 contents=prompt,
                 config={"temperature": 0.2, "response_mime_type": "application/json"}
             )
             return response.text.strip()
+        except Exception as exc:
+            # Rotate immediately on error so the next retry attempt uses the next key!
+            rotate_gemini_client()
+            raise exc
 
-        try:
-            raw = _call_gemini()
-            data = json.loads(raw)
-            
-            # Rate limit spacing: sleep 4.5s to respect the 15 requests per minute limit
-            time.sleep(4.5)
-            
-            return {
-                "scam_risk": data.get("scam_risk", "Unknown"),
-                "risk_notes": data.get("risk_notes", ""),
-                "prep_sheet": data.get("prep_sheet", "")
-            }
-        except Exception as e:
-            logger.error("Failed to generate company analysis with Gemini: %s. Using heuristic fallback.", e)
+    try:
+        raw = _call_gemini()
+        data = json.loads(raw)
+        
+        # Rate limit spacing: sleep 4.5s to respect the 15 requests per minute limit
+        time.sleep(4.5)
+        
+        return {
+            "scam_risk": data.get("scam_risk", "Unknown"),
+            "risk_notes": data.get("risk_notes", ""),
+            "prep_sheet": data.get("prep_sheet", "")
+        }
+    except Exception as e:
+        logger.error("Failed to generate company analysis with Gemini: %s. Using heuristic fallback.", e)
+
             
     # Fallback to rules-based heuristic checker if AI is rate-limited or offline
     fallback_res = _heuristic_scam_check(company_name, scam_results)
