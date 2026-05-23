@@ -26,6 +26,52 @@ def _search_web(query: str, max_results: int = 3) -> str:
         logger.warning("Web search failed for query '%s': %s", query, e)
         return "Web search unavailable."
 
+def _heuristic_scam_check(company_name: str, scam_results: str) -> Dict[str, str]:
+    """
+    Fallback rule-based scam checker if Gemini is rate-limited or offline.
+    Uses string matching against common red flags in search snippets.
+    """
+    results_lower = scam_results.lower()
+    
+    # 1. Direct blocklist companies (known predatory/scam platforms reported by the user)
+    blocklist = {
+        "labmentix": "Known predatory platform offering fake or paid internship cert schemes.",
+        "bluestock": "Frequently flagged for deceptive internship offers, charging fees, or low educational value.",
+        "codsoft": "Flagged for sending generic certificate-based unpaid mass internship loops.",
+        "octanet": "Known for mass automated unpaid internship programs with low educational value."
+    }
+    
+    comp_clean = company_name.lower().replace(" ", "").replace("-", "")
+    for blocked_name, note in blocklist.items():
+        if blocked_name in comp_clean:
+            return {
+                "scam_risk": "High",
+                "risk_notes": f"[Heuristic Fallback] {note}"
+            }
+
+    # 2. Heuristic word matching
+    high_risk_words = ["scam", "fake", "fraud", "scammer", "MLM", "pyramid scheme", "scammed", "predatory"]
+    medium_risk_words = ["unpaid repetitive", "pay for certificate", "asking money", "deposit fee", "fees", "complaint", "not legit", "certificate scheme"]
+    
+    high_count = sum(1 for w in high_risk_words if w in results_lower)
+    med_count = sum(1 for w in medium_risk_words if w in results_lower)
+    
+    if high_count >= 2:
+        return {
+            "scam_risk": "High",
+            "risk_notes": "[Heuristic Fallback] Multiple online reviews flag this company as a potential scam or fake internship provider."
+        }
+    elif high_count >= 1 or med_count >= 2:
+        return {
+            "scam_risk": "Medium",
+            "risk_notes": "[Heuristic Fallback] Several reviews suggest potential issues (unpaid mass certificates, fees, or mixed ratings)."
+        }
+        
+    return {
+        "scam_risk": "Low",
+        "risk_notes": "[Heuristic Fallback] No significant scam reports or negative reviews found on Reddit or Google."
+    }
+
 def analyze_company(company_name: str, role: str, status: str) -> Dict[str, str]:
     """
     Research a company.
@@ -49,6 +95,8 @@ def analyze_company(company_name: str, role: str, status: str) -> Dict[str, str]
 
     # 3. Use Gemini to analyze the findings
     from status_classifier import _get_gemini_client
+    from utils import retry
+    import time
     
     prompt = f"""You are a cybersecurity expert and career advisor.
 Analyze the following web search results for the company "{company_name}" (Role: {role}).
@@ -68,20 +116,37 @@ Return ONLY valid JSON with this schema:
 """
     client = _get_gemini_client()
     if client:
-        try:
+        # Define retrying call helper
+        @retry(max_attempts=3, delay=5.0, backoff=2.0, exceptions=(Exception,))
+        def _call_gemini():
             response = client.models.generate_content(
                 model='gemini-2.5-flash',
                 contents=prompt,
                 config={"temperature": 0.2, "response_mime_type": "application/json"}
             )
-            raw = response.text.strip()
+            return response.text.strip()
+
+        try:
+            raw = _call_gemini()
             data = json.loads(raw)
+            
+            # Rate limit spacing: sleep 4.5s to respect the 15 requests per minute limit
+            time.sleep(4.5)
+            
             return {
                 "scam_risk": data.get("scam_risk", "Unknown"),
                 "risk_notes": data.get("risk_notes", ""),
                 "prep_sheet": data.get("prep_sheet", "")
             }
         except Exception as e:
-            logger.error("Failed to generate company analysis with Gemini: %s", e)
+            logger.error("Failed to generate company analysis with Gemini: %s. Using heuristic fallback.", e)
             
-    return {"scam_risk": "Unknown", "risk_notes": "AI analysis failed.", "prep_sheet": ""}
+    # Fallback to rules-based heuristic checker if AI is rate-limited or offline
+    fallback_res = _heuristic_scam_check(company_name, scam_results)
+    return {
+        "scam_risk": fallback_res["scam_risk"],
+        "risk_notes": fallback_res["risk_notes"],
+        "prep_sheet": ""
+    }
+
+
